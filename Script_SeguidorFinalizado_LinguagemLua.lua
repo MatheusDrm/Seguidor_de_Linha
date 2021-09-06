@@ -1,7 +1,7 @@
 -- Código do seguidor de linha em linguagem lua
 
 function sysCall_init()
-    -- Inicialização
+    -- Inicialização dos objetos utilizados na simulação
     motorEsquerdo=sim.getObjectHandle('Roda_1')
     motorDireito=sim.getObjectHandle('Roda_2')
     sensor0=sim.getObjectHandle('sensor0')
@@ -22,6 +22,8 @@ function sysCall_init()
     erro=0
     erroanterior=0
     
+
+    -- Controlador PID (constantes proporcionais, integrais e derivativas + variaveis auxiliares)
     integral = 0
     derivativo = 0
     
@@ -128,7 +130,7 @@ function sysCall_sensing()
     resultc,datac=sim.readVisionSensor(camera)
     distance = datac[15]
 
-     -- LER SENSORES
+     -- Motores voltam a funcionar quando o sensor do meio encontra a linha 
     if data2[11]<0.5 then
     	cruzamento=false
     	vMotor=20
