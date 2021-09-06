@@ -1,0 +1,63 @@
+--Script ControlePID
+
+-- Função para ajuste do erro utilizado no controle PID
+function erroCalc()
+
+        if (data0[11]>0.5 and data1[11]>0.5 and data2[11]>0.5 and data3[11]>0.5 and data4[11]<0.5) then
+                erro = 4
+           
+         elseif (data0[11]>0.5 and data1[11]>0.5 and data2[11]>0.5 and data3[11]<0.5 and data4[11]<0.5) then
+                erro = 3
+               
+         elseif (data0[11]>0.5 and data1[11]>0.5 and data2[11]>0.5 and data3[11]<0.5 and data4[11]>0.5) then
+                erro = 2
+             
+         elseif (data0[11]>0.5 and data1[11]>0.5 and data2[11]<0.5 and data3[11]<0.5 and data4[11]>0.5) then
+                erro = 1
+             
+         elseif (data0[11]>0.5 and data1[11]>0.5 and data2[11]<0.5 and data3[11]>0.5 and data4[11]>0.5) then
+                erro = 0
+              
+         elseif (data0[11]>0.5 and data1[11]<0.5 and data2[11]<0.5 and data3[11]>0.5 and data4[11]>0.5) then
+                erro = -1
+              
+         elseif (data0[11]>0.5 and data1[11]<0.5 and data2[11]>0.5 and data3[11]>0.5 and data4[11]>0.5) then
+                erro = -2
+              
+         elseif (data0[11]<0.5 and data1[11]<0.5 and data2[11]>0.5 and data3[11]>0.5 and data4[11]>0.5) then
+                erro = -3
+            
+         elseif (data0[11]<0.5 and data1[11]>0.5 and data2[11]>0.5 and data3[11]>.5 and data4[11]>0.5) then
+                erro = -4
+            
+         elseif (data0[11]>0.5 and data1[11]>0.5 and data2[11]>0.5 and data3[11]>.5 and data4[11]>0.5) then
+                if (erroanterior <= -4) then
+                    erro = -5  
+                else
+                    erro = 5
+                end
+        end          
+end
+    
+    -- Função para implementação do controle PID
+
+    function pid()
+        TermoP = erro * kp
+        
+        integral = integral + erro
+        TermoI = ki * integral
+        
+        derivativo = erro - erroanterior
+        TermoD = derivativo * kd
+        
+        saida = TermoP + TermoI + TermoD
+        
+        erroanterior = erro
+    end
+    
+    --Função para ajusta da velocidade dos motores de acordo com o controle PID
+
+    function velocidade() 
+        sim.setJointTargetVelocity(motorEsquerdo, vMotor + saida)
+        sim.setJointTargetVelocity(motorDireito, vMotor - saida)
+    end
