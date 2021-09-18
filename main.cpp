@@ -21,13 +21,17 @@ int main(int argc, char **argv)
   float vLeft = 0;
   int rightMotorHandle = 0;
   float vRight = 0;
-  float vMotor = 10;
+  float vMotor = 35;
   // Variaveis PID 
   float integral = 0;
   float derivativa = 0;
-  float kp = 2;
+  float kp = 2.2;
   float ki = 0.3;
   float kd = 1;
+  float erro = 0;
+  float erro_anterior = 0;
+
+  float termoP, termoI, termoD, saida; 
   //Handles e nomes dos sensores
   string sensorNome[6] = {"sensor0", "sensor1", "sensor2", "sensor3", "sensor4", "camera"};
   int sensorHandle[6];
@@ -97,12 +101,12 @@ int main(int argc, char **argv)
           }
           sum = sum/(res[0]*res[0]);
           if(sum > 100)
-            sensorResponse[i] = 0;
-          else
             sensorResponse[i] = 1;
+          else
+            sensorResponse[i] = 0;
           
          //printf("Sensor[%i] : %d \n",i,image[i]);
-          printf("Sensor[%i] : %d \n",i,sensorResponse[i]);
+          //printf("Sensor[%i] : %d \n",i,sensorResponse[i]);
         } 
       }
       // Teste Movimentação
@@ -122,24 +126,71 @@ int main(int argc, char **argv)
       }*/
       //                          PID da Alegria
 
+      // Calculo do erro
+        if (sensorResponse[0]>0.5 && sensorResponse[1]>0.5 && sensorResponse[2]>0.5 && sensorResponse[3]>0.5 && sensorResponse[4]<0.5){
+                erro = 4;
+           
+        }else if (sensorResponse[0]>0.5 && sensorResponse[1]>0.5 && sensorResponse[2]>0.5 && sensorResponse[3]<0.5 && sensorResponse[4]<0.5) 
+                erro = 3;
+               
+         else if (sensorResponse[0]>0.5 && sensorResponse[1]>0.5 && sensorResponse[2]>0.5 && sensorResponse[3]<0.5 && sensorResponse[4]>0.5) 
+                erro = 2;
+             
+         else if (sensorResponse[0]>0.5 && sensorResponse[1]>0.5 && sensorResponse[2]<0.5 && sensorResponse[3]<0.5 && sensorResponse[4]>0.5) 
+                erro = 1;
+             
+         else if (sensorResponse[0]>0.5 && sensorResponse[1]>0.5 && sensorResponse[2]<0.5 && sensorResponse[3]>0.5 && sensorResponse[4]>0.5) 
+                erro = 0;
+              
+         else if (sensorResponse[0]>0.5 && sensorResponse[1]<0.5 && sensorResponse[2] <0.5 && sensorResponse[3]>0.5 && sensorResponse[4]>0.5) 
+                erro = -1;
+              
+         else if (sensorResponse[0]>0.5 && sensorResponse[1]<0.5 && sensorResponse[2]>0.5 && sensorResponse[3]>0.5 && sensorResponse[4]>0.5)
+                erro = -2;
+              
+         else if (sensorResponse[0]<0.5 && sensorResponse[1]<0.5 && sensorResponse[2]>0.5 && sensorResponse[3]>0.5 && sensorResponse[4]>0.5)
+                erro = -3;
+            
+         else if (sensorResponse[0]<0.5 && sensorResponse[1]>0.5 && sensorResponse[2]>0.5 && sensorResponse[3]>.5 && sensorResponse[4]>0.5)
+                erro = -4;
+            
+         else if (sensorResponse[0]>0.5 && sensorResponse[1]>0.5 && sensorResponse[2]>0.5 && sensorResponse[3]>.5 && sensorResponse[4]>0.5){
+                if (erro_anterior <= -4) {
+                    erro = -5; 
+                }else
+                    erro = 5;
+          }        
 
+      // Função PID
+        termoP = erro*kp;
 
+        integral += erro;
+        termoI = ki*integral;
 
+        derivativa = erro-erro_anterior;
+        termoD = derivativa*kd;
 
+        saida = termoP + termoD + termoI;
+        erro_anterior = erro; 
 
+        vLeft = (vMotor + saida) * 0.5;
+        vRight = (vMotor - saida) *0.5;
+
+        printf("%f\n", saida);
+        simxSetJointTargetVelocity(clientID, leftMotorHandle, (simxFloat)vLeft, simx_opmode_streaming);
+        simxSetJointTargetVelocity(clientID, rightMotorHandle, (simxFloat)vRight, simx_opmode_streaming);
 
       //Codigo da visao
       if(simxGetVisionSensorImage(clientID,sensorHandle[5],res,&image,0,simx_opmode_streaming) == simx_return_ok){
-        printf("Camera reconhecida");
+        //printf("Camera reconhecida");
       }else{
-        printf("Camera nao reconhecida");
+        //printf("Camera nao reconhecida");
       }
 
       // atualiza velocidades dos motores
-      simxSetJointTargetVelocity(clientID, leftMotorHandle, (simxFloat)vLeft, simx_opmode_streaming);
-      simxSetJointTargetVelocity(clientID, rightMotorHandle, (simxFloat)vRight, simx_opmode_streaming);
       
-      extApi_sleepMs(5);
+      
+      extApi_sleepMs(30);
     }
     simxFinish(clientID); // fechando conexao com o servidor
     cout << "Conexao fechada!" << std::endl;
