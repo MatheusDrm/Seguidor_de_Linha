@@ -6,12 +6,18 @@ extern "C"
 #include "remoteApi/extApi.h"
 }
 
+// Implementação das bibliotecas
 #include <iostream>
 #include <string.h>
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include<opencv2/imgproc.hpp>
 
 using namespace std;
+using namespace cv;
 
 // Variaveis para conexao do servidor
+
 string serverIP = "127.0.0.1";
 int serverPort = 19999;
 int clientID = simxStart((simxChar *)serverIP.c_str(), serverPort, true, true, 2000, 5);
@@ -24,9 +30,9 @@ int rightMotorHandle = 0;
 float vRight = 0;
 float vMotor = 33;
 
-// Variaveis PID 
+// Declaração das variaveis específicas do PID 
 
-float integral = 0;
+float integrativo = 0;
 float derivativa = 0;
 float kp = 2;
 float ki = 0.3;
@@ -37,12 +43,16 @@ float erro_anterior = 0;
 float termoP, termoI, termoD, saida; 
 
 
-// Variaveis aux
+// Declaração das variaveis auxiliares
+
 int parar = 0;
 int cruzamento = 0;
 int contadorVolta = 0;
+int auxContador = 0;
 int aux = 1;
 int auxTempo = 1;
+
+// Declaração das funções necessárias
 
 void func_P(void);
 
@@ -50,14 +60,23 @@ void curva(void);
 
 void tempo(void);
 
+int detecAzul(const Mat& src);
+
+int detecVermelho(const Mat& src);
+
 int main(int argc, char **argv)
 {
   //Handles e nomes dos sensores
+
   string sensorNome[6] = {"sensor0", "sensor1", "sensor2", "sensor3", "sensor4", "camera"};
   int sensorHandle[6];
 
   int res[2];
   simxUChar* image;
+
+  int resC[2];
+  simxUChar* camera;
+
   int sensorResponse[6] = {0,0,0,0,0,0};
 
   simxFloat* auxValues;
@@ -65,14 +84,54 @@ int main(int argc, char **argv)
   simxUChar* detectionState;
 
   simxInt* auxValuesCount;
-  //Tenta estabelecer conexao com a simulacao (nao esqueca de dar play)
-  //int clientID = simxStart((simxChar *)serverIP.c_str(), serverPort, true, true, 2000, 5);
 
-  //Se a conexao e estabelicida, sera retornado um valo diferente de 0
+  // Teste da condição para conexão do Remote Api com o servidor 
   if (clientID != -1)
   {
     printf("Servidor conectado!\n");
     
+    // Definição de variáveis Locais
+
+    int b,g,r;
+
+    // Definição dos ranges de Hue, saturação e Value para as cores vermelho e azul
+    Scalar blueLow = Scalar(100, 150, 150);
+    Scalar blueHigh = Scalar(140, 255, 255);
+
+    Scalar redLow = Scalar(0, 70, 50);
+    Scalar redHigh = Scalar(10, 255, 255);
+    
+    int iLowH = 0;
+    int iHighH = 179;
+
+    int iLowS = 0; 
+    int iHighS = 255;
+
+    int iLowV = 0;
+    int iHighV = 255;
+
+    // Variável para estado de detecção das cores
+
+    int azul = 0;
+    int vermelho = 0;
+    
+    // Comandos para criar duas janelas, uma para mostrar o filtro da cor azul da imagem da camera e outra para mostrar o filtro da cor vermelho
+    namedWindow("JanelaB", WINDOW_AUTOSIZE);
+    namedWindow("JanelaR", WINDOW_AUTOSIZE);
+
+    // Parte do código comentada, porém pode ser utilizada caso tenha interesse em fazer os ajustes dos parâmetros de forma mais fácil
+    
+    /*
+    createTrackbar("LowH", "JanelaR", &iLowH, 179); //Hue (0 - 179)
+    createTrackbar("HighH", "JanelaR", &iHighH, 179);
+
+    createTrackbar("LowS", "JanelaR", &iLowS, 255); //Saturation (0 - 255)
+    createTrackbar("HighS", "JanelaR", &iHighS, 255);
+
+    createTrackbar("LowV", "JanelaR", &iLowV, 255);//Value (0 - 255)
+    createTrackbar("HighV", "JanelaR", &iHighV, 255);
+    */
+
     // inicialização dos motores
     if (simxGetObjectHandle(clientID, (const simxChar *)"Roda_1", (simxInt *)&leftMotorHandle, (simxInt)simx_opmode_oneshot_wait) != simx_return_ok)
       printf("Handle do motor esquerdo nao encontrado!\n");
@@ -98,8 +157,9 @@ int main(int argc, char **argv)
         simxGetVisionSensorImage(clientID,sensorHandle[i],res,&image,0,simx_opmode_streaming);
       }
     }
+
     // inicialização da camera
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 6; i++)
     {
       if (simxGetObjectHandle(clientID, (const simxChar *)sensorNome[i].c_str(), (simxInt *)&sensorHandle[i], (simxInt)simx_opmode_oneshot_wait) != simx_return_ok)
       {
@@ -113,10 +173,10 @@ int main(int argc, char **argv)
     }
 
 
-    //                                                      CÓDIGO BASE
+    //                                                     CÓDIGO BASE
 
 
-    while (simxGetConnectionId(clientID) != -1) // enquanto a simulação estiver ativa
+    while (simxGetConnectionId(clientID) != -1) // Looping enquanto a simulação estiver ativa
     {
       for (int i = 0; i < 5; i++)
       {
@@ -142,7 +202,7 @@ int main(int argc, char **argv)
 
       //                                                 IMPLEMENTAÇÃO DO PID
 
-      // Calculo do erro
+      // Calculo do erro (erro é definido de acordo com a posição do seguidor em relação a linha preta)
       if(parar==0){
         if (sensorResponse[0]>0.5 && sensorResponse[1]>0.5 && sensorResponse[2]>0.5 && sensorResponse[3]>0.5 && sensorResponse[4]<0.5){
                 erro = 4;
@@ -178,53 +238,97 @@ int main(int argc, char **argv)
                     erro = 5;
           }        
         func_P();
-        printf("%f\n", saida);
        }
 
+      cout << " contadorVolta: "<< contadorVolta;
       //                                                  CÓDIGO DA VISÃO
       
+      // Receber imagem da camera
+
       if(simxGetVisionSensorImage(clientID,sensorHandle[5],res,&image,1,simx_opmode_streaming) == simx_return_ok){
         //printf("Camera reconhecida");
       }else{
         //printf("Camera nao reconhecida");
       }
       
+      // Código base do processamento de imagem
+
       if(simxReadVisionSensor(clientID,sensorHandle[5], detectionState, &auxValues, &auxValuesCount,simx_opmode_streaming) == simx_return_ok){
-          printf("Profundidade: %f\n", auxValues[14]);
+        // Essa função retorna um vetor auxValues em que o 14 termo é a profundidade medida pela câmera e, portanto, será utilizada para medir a distância à objetos
+          //printf("Profundidade: %f\n", auxValues[14]);
           //                                CÓDIGO BLOCO AZUL
-          /*if (auxValues[14]<0.04 && cruzamento==0){
+          if(simxGetVisionSensorImage(clientID,sensorHandle[5],resC,&camera, 0,simx_opmode_streaming) == simx_return_ok)
+              {
+                // Definição da matriz para receber as imagens da camera
+                Mat videoSensor( res[0], res[1], CV_8UC3, camera);
+                // A imagem vem direcionada errada, logo é necessário inverter a imagem
+                flip(videoSensor, videoSensor, 0);
+                // Converter a imagem recebida que estava em RGB para BGR
+                cvtColor(videoSensor, videoSensor, COLOR_RGB2BGR);
+                Mat imgThresholdedB;
+                Mat imgThresholdedR;
+                // Converter a imagem de BGR para HSV para facilitar detecção de cor
+                cvtColor(videoSensor, videoSensor, COLOR_BGR2HSV);
+                // Limitar a imagem aos ranges de cor definidos anteriormente
+                inRange(videoSensor, blueLow, blueHigh, imgThresholdedB);
+                inRange(videoSensor, redLow, redHigh, imgThresholdedR);
+                //inRange(videoSensor, Scalar(iLowH, iLowS, iLowV), Scalar(iHighH, iHighS, iHighV), imgThresholdedR);
+
+                //  Processamento da imagem
+                erode(imgThresholdedB, imgThresholdedB, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) );
+                dilate( imgThresholdedB, imgThresholdedB, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) ); 
+
+                erode(imgThresholdedR, imgThresholdedR, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) );
+                dilate( imgThresholdedR, imgThresholdedR, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) );
+              
+                if(cruzamento==0){
+                  azul = detecAzul(imgThresholdedB);
+                  vermelho = detecVermelho(imgThresholdedR);
+                }
+                
+                // Mostrar a imagem pós filtro de cor na janela criada anteriormente
+                //imshow("JanelaN",videoSensor);
+                imshow("JanelaB",imgThresholdedB);
+                imshow("JanelaR",imgThresholdedR);
+                waitKey(10);
+                //imshow("JanelaR",imgThresholdedR);
+              }
+          if (auxValues[14]<0.048 && cruzamento==0 && azul==1){
+            cout << "entrou curva";
             simxSetJointTargetVelocity(clientID, leftMotorHandle, 5, simx_opmode_streaming);
             simxSetJointTargetVelocity(clientID, rightMotorHandle, 5, simx_opmode_streaming);
-            if (auxValues[14]<0.026){
+            if (auxValues[14]<0.035){
+              cout << "entrou curva 2" << endl;
               cruzamento = 1;
               simxSetJointTargetVelocity(clientID, leftMotorHandle, 0, simx_opmode_streaming);
               simxSetJointTargetVelocity(clientID, rightMotorHandle, 0, simx_opmode_streaming);
-              curva();
-              
+              curva();       
             }
             parar = 1;
             saida = 0;
-          }*/
+          }
+          
           //                               CÓDIGO BLOCO VERMELHO
-          if (auxValues[14]<0.026){
+          
+         if (auxValues[14]<0.035 && vermelho==1){
               if (auxTempo==1){
-                auxTempo=0;
+                auxTempo=0;;
                 tempo();
               }
             //parar = 1;
             //saida = 0;
             }
+            
       }else{
-        printf("DEU RUIM");
+        printf("Problemas para pegar imagem");
       }
-    
-      extApi_sleepMs(50);
+      
+    extApi_sleepMs(50);
     }
     simxFinish(clientID); // fechando conexao com o servidor
     cout << "Conexao fechada!" << std::endl;
   }
   else
-
   {
     printf("Problemas para conectar o servidor!\n");
   }
@@ -234,10 +338,11 @@ int main(int argc, char **argv)
 // FUNÇÃO PARA IMPLEMENTAÇÃO DO CONTROLE PID
 
 void func_P(void){
+        // Aplicação da lógica do controle PID
         termoP = erro*kp;
 
-        integral += erro;
-        termoI = ki*integral;
+        integrativo += erro;
+        termoI = ki*integrativo;
 
         derivativa = erro-erro_anterior;
         termoD = derivativa*kd;
@@ -248,7 +353,7 @@ void func_P(void){
         vLeft = (vMotor + saida) * 0.4;
         vRight = (vMotor - saida) * 0.4;
 
-        
+        // Definindo as velocidades nos motores
         simxSetJointTargetVelocity(clientID, leftMotorHandle, (simxFloat)vLeft, simx_opmode_streaming);
         simxSetJointTargetVelocity(clientID, rightMotorHandle, (simxFloat)vRight, simx_opmode_streaming);
 }
@@ -256,9 +361,9 @@ void func_P(void){
 // FUNÇÃO PARA REALIZAÇÃO DAS CURVAS
 
 void curva(void){
-  if (contadorVolta==0){
+  if (contadorVolta==1){
       simxSetJointTargetVelocity(clientID, rightMotorHandle, 5, simx_opmode_streaming);
-  }else if (contadorVolta==1){
+  }else if (contadorVolta==2){
       simxSetJointTargetVelocity(clientID, leftMotorHandle, 5, simx_opmode_streaming);
   }
 }
@@ -266,9 +371,54 @@ void curva(void){
 // FUNÇÃO PARA PARAR O TEMPO
 
 void tempo(void){
+  /*
+  float tAntes[2];
+  if (auxTempo==1){
+    tAntes[2] = simxGetSimulationTime(simxServiceCall);
+    auxTempo = 0;
+  }
+  float tAtual[2]=simxGetSimulationTime(simxServiceCall);
+  if (tAtual[1]-tAntes[1]<5.0){
+    simxSetJointTargetVelocity(clientID, leftMotorHandle, 0, simx_opmode_streaming);
+    simxSetJointTargetVelocity(clientID, rightMotorHandle, 0, simx_opmode_streaming);
+  }
+  */
+  
   simxSetJointTargetVelocity(clientID, leftMotorHandle, 0, simx_opmode_streaming);
   simxSetJointTargetVelocity(clientID, rightMotorHandle, 0, simx_opmode_streaming);
   extApi_sleepMs(8000);
-  //parar = 0;
-  //cruzamento = 0;
+  auxContador = 0;
+  parar = 0;
+  cruzamento = 0;
+}
+
+//Função para detecção da cor Azul
+int detecAzul(const Mat& src){
+  Moments MomentosB = moments(src);
+  double dAreaB = MomentosB.m00;
+  if (dAreaB>5000000){
+    printf("area de azul: %lf\n", dAreaB);
+    if (auxContador==0){
+      contadorVolta = contadorVolta + 1;
+      auxContador = 1;
+    }
+    cruzamento = 0;
+    return 1;
+  }
+  printf("area de azul: %lf\n", dAreaB);
+  waitKey(10);
+  return 0;
+  }
+
+//Função para detecção da cor Vermelho
+int detecVermelho(const Mat& src){
+  Moments MomentosR = moments(src);
+  double dAreaR = MomentosR.m00;
+  if (dAreaR>7000000){
+    printf(" Area de azul: %lf\n", dAreaR);
+    return 1;
+  }
+  printf(" Area de vermelho: %lf\n", dAreaR);
+  waitKey(10);
+  return 0;
 }
