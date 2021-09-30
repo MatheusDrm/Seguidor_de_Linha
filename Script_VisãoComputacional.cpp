@@ -125,10 +125,77 @@ int detecVermelho(const Mat& src);
                 auxTempo=0;;
                 tempo();
               }
-            //parar = 1;
-            //saida = 0;
             }
             
       }else{
         printf("Problemas para pegar imagem");
       }
+      
+// Fora da int main()
+
+//FUNÇÃO PARA DETECÇÃO DA COR AZUL
+
+int detecAzul(const Mat& src){
+  Moments MomentosB = moments(src);
+  // Cálculo da área da imagem com cor azul a partir do momento
+  double dAreaB = MomentosB.m00;
+  // Condição para determinar leitura do azul
+  if (dAreaB>5000000){
+    if (auxContador==0){
+      contadorVolta = contadorVolta + 1;
+      auxContador = 1;
+    }
+    cruzamento = 0;
+    return 1;
+  }
+  waitKey(10);
+  return 0;
+  }
+
+//FUNÇÃO PARA DETECÇÃO DA COR VERMELHO
+
+int detecVermelho(const Mat& src){
+  Moments MomentosR = moments(src);
+  // Cálculo da área da imagem com cor vermelha a partir do momento
+  double dAreaR = MomentosR.m00;
+  // Condição para determinar leitura do vermelho
+  if (dAreaR>7000000){
+    return 1;
+  }
+  waitKey(10);
+  return 0;
+}
+
+// FUNÇÃO PARA REALIZAÇÃO DAS CURVAS
+
+void curva(void){
+  if (contadorVolta==1){
+    // Curva para a esquerda
+      simxSetJointTargetVelocity(clientID, rightMotorHandle, 5, simx_opmode_streaming);
+  }else if (contadorVolta==2){
+      // Curva para a direita
+      simxSetJointTargetVelocity(clientID, leftMotorHandle, 5, simx_opmode_streaming);
+      contadorVolta = contadorVolta +1;
+  }
+}
+
+// FUNÇÃO PARA PARAR O SEGUIDOR POR DETERMINADO TEMPO
+
+void tempo(void){
+  simxSetJointTargetVelocity(clientID, leftMotorHandle, 0, simx_opmode_streaming);
+  simxSetJointTargetVelocity(clientID, rightMotorHandle, 0, simx_opmode_streaming);
+  // Para o funcionamento do código por 5 segundos
+  extApi_sleepMs(8000);
+  auxContador = 0;
+  parar = 0;
+  cruzamento = 0;
+}
+
+
+
+
+
+
+
+
+
