@@ -34,8 +34,8 @@ float vMotor = 33;
 
 float integrativo = 0;
 float derivativa = 0;
-float kp = 2;
-float ki = 0.3;
+float kp = 3.3;
+float ki = 0.4;
 float kd = 1;
 float erro = 0;
 float erro_anterior = 0;
@@ -255,7 +255,7 @@ int main(int argc, char **argv)
 
       if(simxReadVisionSensor(clientID,sensorHandle[5], detectionState, &auxValues, &auxValuesCount,simx_opmode_streaming) == simx_return_ok){
         // Essa função retorna um vetor auxValues em que o 14 termo é a profundidade medida pela câmera e, portanto, será utilizada para medir a distância à objetos
-          //printf("Profundidade: %f\n", auxValues[14]);
+          printf("Profundidade: %f\n", auxValues[14]);
           //                                CÓDIGO BLOCO AZUL
           if(simxGetVisionSensorImage(clientID,sensorHandle[5],resC,&camera, 0,simx_opmode_streaming) == simx_return_ok)
               {
@@ -293,7 +293,7 @@ int main(int argc, char **argv)
                 waitKey(10);
                 //imshow("JanelaR",imgThresholdedR);
               }
-          if (auxValues[14]<0.048 && cruzamento==0 && azul==1){
+          if (auxValues[14]<0.045 && cruzamento==0 && azul==1){
             cout << "entrou curva";
             simxSetJointTargetVelocity(clientID, leftMotorHandle, 5, simx_opmode_streaming);
             simxSetJointTargetVelocity(clientID, rightMotorHandle, 5, simx_opmode_streaming);
@@ -310,13 +310,21 @@ int main(int argc, char **argv)
           
           //                               CÓDIGO BLOCO VERMELHO
           
-         if (auxValues[14]<0.035 && vermelho==1){
+         if (auxValues[14]<0.2 && vermelho==1){
               if (auxTempo==1){
-                auxTempo=0;;
+                auxTempo=0;
                 tempo();
               }
             //parar = 1;
             //saida = 0;
+            }
+
+            //                               CÓDIGO PARADA
+
+          if (auxValues[14]<0.01 && azul==1 && contadorVolta >= 3){
+            parar = 1;
+            simxSetJointTargetVelocity(clientID, leftMotorHandle, 0, simx_opmode_streaming);
+            simxSetJointTargetVelocity(clientID, rightMotorHandle, 0, simx_opmode_streaming);
             }
             
       }else{
@@ -365,25 +373,13 @@ void curva(void){
       simxSetJointTargetVelocity(clientID, rightMotorHandle, 5, simx_opmode_streaming);
   }else if (contadorVolta==2){
       simxSetJointTargetVelocity(clientID, leftMotorHandle, 5, simx_opmode_streaming);
+      contadorVolta = contadorVolta +1;
   }
 }
 
 // FUNÇÃO PARA PARAR O TEMPO
 
 void tempo(void){
-  /*
-  float tAntes[2];
-  if (auxTempo==1){
-    tAntes[2] = simxGetSimulationTime(simxServiceCall);
-    auxTempo = 0;
-  }
-  float tAtual[2]=simxGetSimulationTime(simxServiceCall);
-  if (tAtual[1]-tAntes[1]<5.0){
-    simxSetJointTargetVelocity(clientID, leftMotorHandle, 0, simx_opmode_streaming);
-    simxSetJointTargetVelocity(clientID, rightMotorHandle, 0, simx_opmode_streaming);
-  }
-  */
-  
   simxSetJointTargetVelocity(clientID, leftMotorHandle, 0, simx_opmode_streaming);
   simxSetJointTargetVelocity(clientID, rightMotorHandle, 0, simx_opmode_streaming);
   extApi_sleepMs(8000);
@@ -405,7 +401,6 @@ int detecAzul(const Mat& src){
     cruzamento = 0;
     return 1;
   }
-  printf("area de azul: %lf\n", dAreaB);
   waitKey(10);
   return 0;
   }
