@@ -90,9 +90,7 @@ int main(int argc, char **argv)
   {
     printf("Servidor conectado!\n");
     
-    // Definição de variáveis Locais
-
-    int b,g,r;
+    //                     Definição de variáveis Locais
 
     // Definição dos ranges de Hue, saturação e Value para as cores vermelho e azul
     Scalar blueLow = Scalar(100, 150, 150);
@@ -100,7 +98,8 @@ int main(int argc, char **argv)
 
     Scalar redLow = Scalar(0, 70, 50);
     Scalar redHigh = Scalar(10, 255, 255);
-    
+
+    /*  Variáveis para regulação do parâmetros do HSV da detecção de cores
     int iLowH = 0;
     int iHighH = 179;
 
@@ -109,6 +108,7 @@ int main(int argc, char **argv)
 
     int iLowV = 0;
     int iHighV = 255;
+    */
 
     // Variável para estado de detecção das cores
 
@@ -244,7 +244,6 @@ int main(int argc, char **argv)
       //                                                  CÓDIGO DA VISÃO
       
       // Receber imagem da camera
-
       if(simxGetVisionSensorImage(clientID,sensorHandle[5],res,&image,1,simx_opmode_streaming) == simx_return_ok){
         //printf("Camera reconhecida");
       }else{
@@ -255,8 +254,9 @@ int main(int argc, char **argv)
 
       if(simxReadVisionSensor(clientID,sensorHandle[5], detectionState, &auxValues, &auxValuesCount,simx_opmode_streaming) == simx_return_ok){
         // Essa função retorna um vetor auxValues em que o 14 termo é a profundidade medida pela câmera e, portanto, será utilizada para medir a distância à objetos
-          printf("Profundidade: %f\n", auxValues[14]);
-          //                                CÓDIGO BLOCO AZUL
+
+          //                                CÓDIGO PARA DESAFIO DO BLOCO AZUL
+
           if(simxGetVisionSensorImage(clientID,sensorHandle[5],resC,&camera, 0,simx_opmode_streaming) == simx_return_ok)
               {
                 // Definição da matriz para receber as imagens da camera
@@ -272,7 +272,6 @@ int main(int argc, char **argv)
                 // Limitar a imagem aos ranges de cor definidos anteriormente
                 inRange(videoSensor, blueLow, blueHigh, imgThresholdedB);
                 inRange(videoSensor, redLow, redHigh, imgThresholdedR);
-                //inRange(videoSensor, Scalar(iLowH, iLowS, iLowV), Scalar(iHighH, iHighS, iHighV), imgThresholdedR);
 
                 //  Processamento da imagem
                 erode(imgThresholdedB, imgThresholdedB, getStructuringElement(MORPH_ELLIPSE, Size(5, 5)) );
@@ -287,41 +286,39 @@ int main(int argc, char **argv)
                 }
                 
                 // Mostrar a imagem pós filtro de cor na janela criada anteriormente
-                //imshow("JanelaN",videoSensor);
                 imshow("JanelaB",imgThresholdedB);
                 imshow("JanelaR",imgThresholdedR);
                 waitKey(10);
-                //imshow("JanelaR",imgThresholdedR);
               }
+          // Código que será executado caso o seguidor esteja a uma pequena distância do bloco azul
           if (auxValues[14]<0.045 && cruzamento==0 && azul==1){
-            cout << "entrou curva";
+            // Script para diminuir a velocidade enquanto o seguidor não chegar na distância adequada para realização da curva
             simxSetJointTargetVelocity(clientID, leftMotorHandle, 5, simx_opmode_streaming);
             simxSetJointTargetVelocity(clientID, rightMotorHandle, 5, simx_opmode_streaming);
             if (auxValues[14]<0.035){
-              cout << "entrou curva 2" << endl;
               cruzamento = 1;
               simxSetJointTargetVelocity(clientID, leftMotorHandle, 0, simx_opmode_streaming);
               simxSetJointTargetVelocity(clientID, rightMotorHandle, 0, simx_opmode_streaming);
+              // Chama função para realização da curva
               curva();       
             }
             parar = 1;
             saida = 0;
           }
           
-          //                               CÓDIGO BLOCO VERMELHO
+          //                              CÓDIGO PARA DESAFIO DO BLOCO VERMELHO
           
          if (auxValues[14]<0.2 && vermelho==1){
               if (auxTempo==1){
                 auxTempo=0;
                 tempo();
               }
-            //parar = 1;
-            //saida = 0;
             }
 
-            //                               CÓDIGO PARADA
+            //                               CÓDIGO DE PARADA
 
           if (auxValues[14]<0.01 && azul==1 && contadorVolta >= 3){
+            // Define as velocidades dos motores como 0 e define parar = 1 para evitar funcionamento do PID
             parar = 1;
             simxSetJointTargetVelocity(clientID, leftMotorHandle, 0, simx_opmode_streaming);
             simxSetJointTargetVelocity(clientID, rightMotorHandle, 0, simx_opmode_streaming);
@@ -346,7 +343,7 @@ int main(int argc, char **argv)
 // FUNÇÃO PARA IMPLEMENTAÇÃO DO CONTROLE PID
 
 void func_P(void){
-        // Aplicação da lógica do controle PID
+      // Aplicação da lógica do controle PID
         termoP = erro*kp;
 
         integrativo += erro;
@@ -370,30 +367,35 @@ void func_P(void){
 
 void curva(void){
   if (contadorVolta==1){
+    // Curva para a esquerda
       simxSetJointTargetVelocity(clientID, rightMotorHandle, 5, simx_opmode_streaming);
   }else if (contadorVolta==2){
+      // Curva para a direita
       simxSetJointTargetVelocity(clientID, leftMotorHandle, 5, simx_opmode_streaming);
       contadorVolta = contadorVolta +1;
   }
 }
 
-// FUNÇÃO PARA PARAR O TEMPO
+// FUNÇÃO PARA PARAR O SEGUIDOR POR DETERMINADO TEMPO
 
 void tempo(void){
   simxSetJointTargetVelocity(clientID, leftMotorHandle, 0, simx_opmode_streaming);
   simxSetJointTargetVelocity(clientID, rightMotorHandle, 0, simx_opmode_streaming);
+  // Para o funcionamento do código por 5 segundos
   extApi_sleepMs(8000);
   auxContador = 0;
   parar = 0;
   cruzamento = 0;
 }
 
-//Função para detecção da cor Azul
+//FUNÇÃO PARA DETECÇÃO DA COR AZUL
+
 int detecAzul(const Mat& src){
   Moments MomentosB = moments(src);
+  // Cálculo da área da imagem com cor azul a partir do momento
   double dAreaB = MomentosB.m00;
+  // Condição para determinar leitura do azul
   if (dAreaB>5000000){
-    printf("area de azul: %lf\n", dAreaB);
     if (auxContador==0){
       contadorVolta = contadorVolta + 1;
       auxContador = 1;
@@ -405,15 +407,16 @@ int detecAzul(const Mat& src){
   return 0;
   }
 
-//Função para detecção da cor Vermelho
+//FUNÇÃO PARA DETECÇÃO DA COR VERMELHO
+
 int detecVermelho(const Mat& src){
   Moments MomentosR = moments(src);
+  // Cálculo da área da imagem com cor vermelha a partir do momento
   double dAreaR = MomentosR.m00;
+  // Condição para determinar leitura do vermelho
   if (dAreaR>7000000){
-    printf(" Area de azul: %lf\n", dAreaR);
     return 1;
   }
-  printf(" Area de vermelho: %lf\n", dAreaR);
   waitKey(10);
   return 0;
 }
