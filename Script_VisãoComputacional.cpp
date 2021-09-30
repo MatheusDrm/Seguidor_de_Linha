@@ -104,11 +104,9 @@ int detecVermelho(const Mat& src);
                 waitKey(10);
               }
           if (auxValues[14]<0.048 && cruzamento==0 && azul==1){
-            cout << "entrou curva";
             simxSetJointTargetVelocity(clientID, leftMotorHandle, 5, simx_opmode_streaming);
             simxSetJointTargetVelocity(clientID, rightMotorHandle, 5, simx_opmode_streaming);
             if (auxValues[14]<0.035){
-              cout << "entrou curva 2" << endl;
               cruzamento = 1;
               simxSetJointTargetVelocity(clientID, leftMotorHandle, 0, simx_opmode_streaming);
               simxSetJointTargetVelocity(clientID, rightMotorHandle, 0, simx_opmode_streaming);
