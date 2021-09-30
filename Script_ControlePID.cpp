@@ -10,8 +10,8 @@ float vMotor = 33;
 
 float integrativo = 0;
 float derivativa = 0;
-float kp = 2;
-float ki = 0.3;
+float kp = 3.3;
+float ki = 0.4;
 float kd = 1;
 float erro = 0;
 float erro_anterior = 0;
